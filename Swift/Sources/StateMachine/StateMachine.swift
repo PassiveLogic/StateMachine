@@ -8,7 +8,7 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
     public enum Transition {
 
         public typealias Result = Swift.Result<Valid, Error>
-        public typealias Callback = (_ result: Result) -> Void
+        public typealias Callback = (_ result: Result) async throws -> Void
 
         public struct Valid: CustomDebugStringConvertible {
 
@@ -92,16 +92,16 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
     }
 
     @discardableResult
-    public func transition(_ event: Event) throws -> Transition.Valid {
+    public func transition(_ event: Event) async throws -> Transition.Valid {
         guard !isNotifying
         else { throw StateMachineError.recursionDetected }
+        
         let result: Transition.Result
-        defer { notify(result) }
         do {
             let stateIdentifier: State.HashableIdentifier = state.hashableIdentifier
             let eventIdentifier: Event.HashableIdentifier = event.hashableIdentifier
             let factory: Action.Factory? = states[stateIdentifier]?[eventIdentifier]
-            if let action: Action = try factory?(state, event) {
+            if let action: Action = try await factory?(state, event) {
                 let transition: Transition.Valid = .init(fromState: state,
                                                          event: event,
                                                          toState: action.toState ?? state,
@@ -116,10 +116,18 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
         } catch {
             result = .failure(error)
         }
-        return try result.get()
+
+        do {
+            let finalResult = try result.get()
+            try await notify(result)
+            return finalResult
+        } catch {
+            try await notify(result)
+            throw error
+        }
     }
 
-    private func notify(_ result: Transition.Result) {
+    private func notify(_ result: Transition.Result) async throws {
         isNotifying = true
         defer { isNotifying = false }
         var observers: [Observer] = []
@@ -127,7 +135,7 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
             guard observer.object != nil
             else { continue }
             observers.append(observer)
-            observer.callback(result)
+            try await observer.callback(result)
         }
         self.observers = observers
     }
@@ -176,23 +184,23 @@ extension StateMachineBuilder {
 
     public static func on(
         _ event: Event.HashableIdentifier,
-        perform: @escaping (State, Event) throws -> Action
+        perform: @escaping (State, Event) async throws -> Action
     ) -> [EventHandler] {
         [EventHandler(event: event, action: perform)]
     }
 
     public static func on(
         _ event: Event.HashableIdentifier,
-        perform: @escaping (State) throws -> Action
+        perform: @escaping (State) async throws -> Action
     ) -> [EventHandler] {
-        [EventHandler(event: event) { state, _ in try perform(state) }]
+        [EventHandler(event: event) { state, _ in try await perform(state) }]
     }
 
     public static func on(
         _ event: Event.HashableIdentifier,
-        perform: @escaping () throws -> Action
+        perform: @escaping () async throws -> Action
     ) -> [EventHandler] {
-        [EventHandler(event: event) { _, _ in try perform() }]
+        [EventHandler(event: event) { _, _ in try await perform() }]
     }
 
     public static func transition(
@@ -285,7 +293,7 @@ public enum StateMachineTypes {
 
     public struct Action<State: StateMachineHashable, Event: StateMachineHashable, SideEffect> {
 
-        fileprivate typealias Factory = (State, Event) throws -> Self
+        fileprivate typealias Factory = (State, Event) async throws -> Self
 
         fileprivate let toState: State?
         fileprivate let sideEffect: SideEffect?
