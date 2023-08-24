@@ -46,7 +46,7 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
     private typealias Component = StateMachineTypes.Component<State, Event, SideEffect>
 
     private typealias States = [State.HashableIdentifier: Events]
-    private typealias Events = [Event.HashableIdentifier: Action.Factory]
+    private typealias Events = [Event.HashableIdentifier: EventHandler]
 
     private typealias EventHandler = StateMachineTypes.EventHandler<State, Event, SideEffect>
     private typealias Action = StateMachineTypes.Action<State, Event, SideEffect>
@@ -54,6 +54,7 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
     public private(set) var state: State
 
     private let states: States
+    public var allStates: [State.HashableIdentifier] { Array(self.states.keys) }
     private var observers: [Observer] = []
 
     private var isNotifying: Bool = false
@@ -63,12 +64,16 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
         state = definition.initialState.state
         states = definition.states.reduce(into: States()) {
             $0[$1.state] = $1.events.reduce(into: Events()) {
-                $0[$1.event] = $1.action
+                $0[$1.event] = $1
             }
         }
         observers = definition.callbacks.map {
             Observer(object: self, callback: $0)
         }
+    }
+
+    public func nextStates(after state: State) -> [State] {
+        return self.states[state.hashableIdentifier].map { $0.compactMap { $0.value.toState } } ?? []
     }
 
     @discardableResult
@@ -100,7 +105,7 @@ open class StateMachine<State: StateMachineHashable, Event: StateMachineHashable
         do {
             let stateIdentifier: State.HashableIdentifier = state.hashableIdentifier
             let eventIdentifier: Event.HashableIdentifier = event.hashableIdentifier
-            let factory: Action.Factory? = states[stateIdentifier]?[eventIdentifier]
+            let factory: Action.Factory? = states[stateIdentifier]?[eventIdentifier]?.action
             if let action: Action = try await factory?(state, event) {
                 let transition: Transition.Valid = .init(fromState: state,
                                                          event: event,
@@ -180,6 +185,18 @@ extension StateMachineBuilder {
         @EventHandlerArrayBuilder build: () -> [EventHandler]
     ) -> Component {
         .state(state: state, events: build())
+    }
+
+    public static func on(
+        _ event: Event.HashableIdentifier,
+        transitionTo state: State,
+        emitting sideEffect: SideEffect? = nil,
+        perform: (() async throws -> Void)? = nil
+    ) -> [EventHandler] {
+        [EventHandler(event: event, toState: state, action: { _, _ in
+            try await perform?()
+            return transition(to: state, emit: sideEffect)
+        })]
     }
 
     public static func on(
@@ -288,6 +305,7 @@ public enum StateMachineTypes {
     public struct EventHandler<State: StateMachineHashable, Event: StateMachineHashable, SideEffect> {
 
         fileprivate let event: Event.HashableIdentifier
+        fileprivate var toState: State? = nil
         fileprivate let action: Action<State, Event, SideEffect>.Factory
     }
 
