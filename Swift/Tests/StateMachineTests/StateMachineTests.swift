@@ -53,13 +53,13 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
         return stateMachine
     }
 
-    func testDontTransition() async throws {
+    func testDontTransition() throws {
 
         // Given
         let stateMachine: TestStateMachine = givenState(is: .stateOne)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.eventOne)
+        let transition: ValidTransition = try stateMachine.transition(.eventOne)
 
         // Then
         expect(stateMachine.state).to(equal(.stateOne))
@@ -69,13 +69,13 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
                                                     sideEffect: .commandOne)))
     }
 
-    func testTransition() async throws {
+    func testTransition() throws {
 
         // Given
         let stateMachine: TestStateMachine = givenState(is: .stateOne)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.eventTwo)
+        let transition: ValidTransition = try stateMachine.transition(.eventTwo)
 
         // Then
         expect(stateMachine.state).to(equal(.stateTwo))
@@ -85,23 +85,23 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
                                                     sideEffect: .commandTwo)))
     }
 
-    func testInvalidTransition() async throws {
+    func testInvalidTransition() throws {
 
         // Given
         let stateMachine: TestStateMachine = givenState(is: .stateTwo)
 
         // When
-        let transition: () async throws -> ValidTransition = {
-            try await stateMachine.transition(.eventOne)
+        let transition: () throws -> ValidTransition = {
+            try stateMachine.transition(.eventOne)
         }
 
         // Then
-        await expect(transition).to(throwError { error in
+        expect(transition).to(throwError { error in
             expect(error).to(beAKindOf(InvalidTransition.self))
         })
     }
 
-    func testObservation() async throws {
+    func testObservation() throws {
 
         var results: [Result<ValidTransition, InvalidTransition>] = []
 
@@ -112,19 +112,19 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
             }
 
         // When
-        try await stateMachine.transition(.eventOne)
-        try await stateMachine.transition(.eventTwo)
-        let transition: () async throws -> ValidTransition = {
-            try await stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventTwo)
+        let transition: () throws -> ValidTransition = {
+            try stateMachine.transition(.eventOne)
         }
 
         // Then
-        await expect(transition).to(throwError { error in
+        expect(transition).to(throwError { error in
             expect(error).to(beAKindOf(InvalidTransition.self))
         })
 
         // When
-        try await stateMachine.transition(.eventTwo)
+        try stateMachine.transition(.eventTwo)
 
         // Then
         expect(results).to(equal([
@@ -144,7 +144,7 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
         ]))
     }
 
-    func testStopObservation() async throws {
+    func testStopObservation() throws {
 
         var transitionCount: Int = 0
 
@@ -155,22 +155,22 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
             }
 
         // When
-        try await stateMachine.transition(.eventOne)
-        try await stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
 
         // Then
         expect(transitionCount).to(equal(2))
 
         // When
         stateMachine.stopObserving(self)
-        try await stateMachine.transition(.eventOne)
-        try await stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
 
         // Then
         expect(transitionCount).to(equal(2))
     }
 
-    func testRecursionDetectedError() async throws {
+    func testRecursionDetectedError() throws {
 
         var error: TestStateMachine.StateMachineError? = nil
 
@@ -179,14 +179,14 @@ final class StateMachineTests: XCTestCase, StateMachineBuilder {
 
         stateMachine.startObserving(self) { [unowned stateMachine] _ in
             do {
-                try await stateMachine.transition(.eventOne)
+                try stateMachine.transition(.eventOne)
             } catch let e as TestStateMachine.StateMachineError {
                 error = e
             } catch {}
         }
 
         // When
-        try await stateMachine.transition(.eventOne)
+        try stateMachine.transition(.eventOne)
 
         // Then
         expect(error).to(equal(.recursionDetected))

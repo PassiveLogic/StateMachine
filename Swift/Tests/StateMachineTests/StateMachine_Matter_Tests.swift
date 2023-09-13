@@ -87,13 +87,13 @@ final class StateMachine_Matter_Tests: XCTestCase, StateMachineBuilder {
         return stateMachine
     }
 
-    func test_givenStateIsSolid_whenMelted_shouldTransitionToLiquidState() async throws {
+    func test_givenStateIsSolid_whenMelted_shouldTransitionToLiquidState() throws {
 
         // Given
         let stateMachine: MatterStateMachine = givenState(is: .solid)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.melt)
+        let transition: ValidTransition = try stateMachine.transition(.melt)
 
         // Then
         expect(stateMachine.state).to(equal(.liquid))
@@ -104,29 +104,29 @@ final class StateMachine_Matter_Tests: XCTestCase, StateMachineBuilder {
         expect(self.logger).to(log(Message.melted))
     }
 
-    func test_givenStateIsSolid_whenFrozen_shouldThrowInvalidTransitionError() async throws {
+    func test_givenStateIsSolid_whenFrozen_shouldThrowInvalidTransitionError() throws {
 
         // Given
         let stateMachine: MatterStateMachine = givenState(is: .solid)
 
         // When
-        let transition: () async throws -> ValidTransition = {
-            try await stateMachine.transition(.freeze)
+        let transition: () throws -> ValidTransition = {
+            try stateMachine.transition(.freeze)
         }
 
         // Then
-        await expect(transition).to(throwError { error in
+        expect(transition).to(throwError { error in
             expect(error).to(beAKindOf(InvalidTransition.self))
         })
     }
 
-    func test_givenStateIsLiquid_whenFrozen_shouldTransitionToSolidState() async throws {
+    func test_givenStateIsLiquid_whenFrozen_shouldTransitionToSolidState() throws {
 
         // Given
         let stateMachine: MatterStateMachine = givenState(is: .liquid)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.freeze)
+        let transition: ValidTransition = try stateMachine.transition(.freeze)
 
         // Then
         expect(stateMachine.state).to(equal(.solid))
@@ -137,13 +137,13 @@ final class StateMachine_Matter_Tests: XCTestCase, StateMachineBuilder {
         expect(self.logger).to(log(Message.frozen))
     }
 
-    func test_givenStateIsLiquid_whenVaporized_shouldTransitionToGasState() async throws {
+    func test_givenStateIsLiquid_whenVaporized_shouldTransitionToGasState() throws {
 
         // Given
         let stateMachine: MatterStateMachine = givenState(is: .liquid)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.vaporize)
+        let transition: ValidTransition = try stateMachine.transition(.vaporize)
 
         // Then
         expect(stateMachine.state).to(equal(.gas))
@@ -154,13 +154,13 @@ final class StateMachine_Matter_Tests: XCTestCase, StateMachineBuilder {
         expect(self.logger).to(log(Message.vaporized))
     }
 
-    func test_givenStateIsGas_whenCondensed_shouldTransitionToLiquidState() async throws {
+    func test_givenStateIsGas_whenCondensed_shouldTransitionToLiquidState() throws {
 
         // Given
         let stateMachine: MatterStateMachine = givenState(is: .gas)
 
         // When
-        let transition: ValidTransition = try await stateMachine.transition(.condense)
+        let transition: ValidTransition = try stateMachine.transition(.condense)
 
         // Then
         expect(stateMachine.state).to(equal(.liquid))
