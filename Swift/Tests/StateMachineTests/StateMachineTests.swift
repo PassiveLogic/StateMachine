@@ -202,7 +202,7 @@ final class Logger {
     }
 }
 
-func log(_ expectedMessages: String...) -> Predicate<Logger> {
+func log(_ expectedMessages: String...) -> Nimble.Predicate<Logger> {
     let expectedString: String = stringify(expectedMessages.joined(separator: "\\n"))
     return Predicate {
         let actualMessages: [String]? = try $0.evaluate()?.messages
